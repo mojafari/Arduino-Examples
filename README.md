@@ -197,3 +197,53 @@ ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 This prevents the interrupt from modifying `encoderPosition` while it is being copied.
 
 ## Encoder Position Code
+
+````ino
+
+#include <util/atomic.h>
+
+#define ENCA 2
+#define ENCB 3
+
+volatile long encoderPosition = 0;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  pinMode(ENCA, INPUT);
+  pinMode(ENCB, INPUT);
+
+  attachInterrupt(
+    digitalPinToInterrupt(ENCA),
+    readEncoder,
+    RISING
+  );
+}
+
+void loop() {
+
+  long position;
+
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    position = encoderPosition;
+  }
+
+  Serial.print("Position: ");
+  Serial.println(position);
+
+  delay(100);
+}
+
+void readEncoder() {
+
+  int b = digitalRead(ENCB);
+
+  if (b == HIGH) {
+    encoderPosition++;
+  }
+  else {
+    encoderPosition--;
+  }
+}
+````
