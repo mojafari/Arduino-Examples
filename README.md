@@ -247,3 +247,89 @@ void readEncoder() {
   }
 }
 ````
+
+At this point, the Arduino knows the relative position of the wheel.
+
+----
+
+# 4. Understanding Encoder Counts
+
+The encoder gives us counts rather than physical units.
+
+For example, suppose the encoder produces:
+
+````text
+
+600 counts / revolution
+````
+
+Then:
+
+````text
+
+0 counts      = 0 revolutions
+300 counts    = 0.5 revolutions
+600 counts    = 1 revolution
+1200 counts   = 2 revolutions
+````
+
+The relationship is:
+
+````text
+
+revolutions = encoderCounts / countsPerRevolution
+````
+
+For example:
+
+````ino
+
+float revolutions =
+    position / countsPerRevolution;
+````
+
+If you know the wheel circumference, you can also calculate distance.
+
+````text
+distance = revolutions × wheel circumference
+````
+
+For example:
+
+````ino
+
+float distance =
+    revolutions * wheelCircumference;
+````
+
+The important thing is to determine what one encoder count represents for your particular motor/encoder combination.
+
+----
+
+
+# 5. Position Control
+
+Now that we can measure position, we can control it.
+
+The basic idea is:
+
+````text
+
+Target Position
+       |
+       v
+     [ PID ]
+       |
+       v
+  Motor Command
+       |
+       v
+     Motor
+       |
+       v
+    Encoder
+       |
+       +----------> Actual Position
+                         |
+                         +----> PID
+````
