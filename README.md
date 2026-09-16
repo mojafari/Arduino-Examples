@@ -82,8 +82,7 @@ The encoder interrupt is triggered by channel A.
 
 ## Basic Encoder Code
 
-```C\C++
-
+```arduino
 #define ENCA 2
 #define ENCB 3
 
