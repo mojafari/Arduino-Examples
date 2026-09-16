@@ -77,3 +77,48 @@ Reverse:
 B: __|‾‾|__|‾‾|__
 A: ____|‾‾|__|‾‾
 ```
+
+The encoder interrupt is triggered by channel A.
+
+## Basic Encoder Code
+
+```C\C++
+
+#define ENCA 2
+#define ENCB 3
+
+volatile long encoderPosition = 0;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  pinMode(ENCA, INPUT);
+  pinMode(ENCB, INPUT);
+
+  attachInterrupt(
+    digitalPinToInterrupt(ENCA),
+    readEncoder,
+    RISING
+  );
+}
+
+void loop() {
+
+  Serial.println(encoderPosition);
+
+  delay(100);
+}
+
+void readEncoder() {
+
+  int b = digitalRead(ENCB);
+
+  if (b == HIGH) {
+    encoderPosition++;
+  }
+  else {
+    encoderPosition--;
+  }
+}
+```
