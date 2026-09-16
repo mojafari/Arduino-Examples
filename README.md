@@ -66,7 +66,7 @@ By looking at channel B whenever channel A changes, we can determine the directi
 
 For example:
 
-```text
+````text
 Forward:
 
 A: __|‾‾|__|‾‾|__
@@ -76,13 +76,13 @@ Reverse:
 
 B: __|‾‾|__|‾‾|__
 A: ____|‾‾|__|‾‾
-```
+````
 
 The encoder interrupt is triggered by channel A.
 
 ## Basic Encoder Code
 
-```arduino
+````arduino
 #define ENCA 2
 #define ENCB 3
 
@@ -120,4 +120,4 @@ void readEncoder() {
     encoderPosition--;
   }
 }
-```
+````
