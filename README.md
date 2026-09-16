@@ -121,3 +121,50 @@ void readEncoder() {
   }
 }
 ````
+
+## What to expect
+
+Rotate the wheel in one direction:
+
+````text
+0
+1
+2
+3
+4
+5
+...
+````
+
+Rotate it in the opposite direction:
+
+````text
+5
+4
+3
+2
+1
+0
+-1
+...
+````
+
+The encoder position can therefore be positive or negative.
+
+If the direction is backwards from what you want, swap the `++` and `--` operations:
+
+````ino
+
+if (b == HIGH) {
+  encoderPosition--;
+}
+else {
+  encoderPosition++;
+}
+````
+
+---
+
+# 3. Reading Encoder Position Safely
+
+The encoder position is modified inside an interrupt:
