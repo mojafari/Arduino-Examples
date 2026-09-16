@@ -993,4 +993,637 @@ For example:
 
 Now instead of comparing position, compare desired speed to measured speed.
 
+````text
+
+speedError =
+targetSpeed - measuredSpeed
+````
+
+For example:
+
+````text
+
+Target speed = 100 RPM
+Actual speed = 80 RPM
+
+Error = 20 RPM
+````
+
+The PID increases motor power.
+
+If:
+
+````text
+Target speed = 100 RPM
+Actual speed = 120 RPM
+
+Error = -20 RPM
+````
+
+The PID decreases motor power.
+
+---
+
+# 17. Speed PID Structure
+
+The control loop becomes:
+
+````text
+
+Target Speed
+      |
+      v
+   Speed Error
+      |
+      v
+     PID
+      |
+      v
+ PWM / Direction
+      |
+      v
+    Motor
+      |
+      v
+   Encoder
+      |
+      v
+Measured Speed
+      |
+      +----------> PID
+````
+
+This is different from position control.
+
+Position control:
+
+````text
+
+Target Position → Position PID → Motor
+````
+
+Speed control:
+
+````text
+
+Target Speed → Speed PID → Motor
+````
+
+# 18. Basic Speed PID Code
+
+````ino
+
+#include <util/atomic.h>
+
+#define ENCA 2
+#define ENCB 3
+
+#define PWM_PIN 5
+#define IN1 9
+#define IN2 10
+
+volatile long encoderPosition = 0;
+
+// Encoder
+long previousPosition = 0;
+
+// Timing
+unsigned long previousTime;
+
+// Speed
+float measuredSpeed = 0;
+
+// Target speed in encoder counts/second
+float targetSpeed = 300;
+
+// PID
+float Kp = 0.5;
+float Ki = 0.0;
+float Kd = 0.0;
+
+float integral = 0;
+float previousError = 0;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // Encoder
+  pinMode(ENCA, INPUT);
+  pinMode(ENCB, INPUT);
+
+  attachInterrupt(
+    digitalPinToInterrupt(ENCA),
+    readEncoder,
+    RISING
+  );
+
+  // Motor
+  pinMode(PWM_PIN, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+
+  setMotor(0);
+
+  previousTime = micros();
+}
+
+void loop() {
+
+  // -----------------------------------------------
+  // Read encoder
+  // -----------------------------------------------
+
+  long currentPosition;
+
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    currentPosition = encoderPosition;
+  }
+
+
+  // -----------------------------------------------
+  // Calculate dt
+  // -----------------------------------------------
+
+  unsigned long currentTime = micros();
+
+  float dt =
+      (currentTime - previousTime) / 1000000.0;
+
+  previousTime = currentTime;
+
+  if (dt <= 0) {
+    return;
+  }
+
+
+  // -----------------------------------------------
+  // Calculate speed
+  // -----------------------------------------------
+
+  long deltaPosition =
+      currentPosition - previousPosition;
+
+  measuredSpeed =
+      deltaPosition / dt;
+
+  previousPosition =
+      currentPosition;
+
+
+  // -----------------------------------------------
+  // Speed PID
+  // -----------------------------------------------
+
+  float error =
+      targetSpeed - measuredSpeed;
+
+  integral += error * dt;
+
+  float derivative =
+      (error - previousError) / dt;
+
+  float output =
+      Kp * error +
+      Ki * integral +
+      Kd * derivative;
+
+  previousError =
+      error;
+
+
+  // -----------------------------------------------
+  // Limit output
+  // -----------------------------------------------
+
+  output =
+      constrain(output, -255, 255);
+
+
+  // -----------------------------------------------
+  // Motor
+  // -----------------------------------------------
+
+  setMotor(output);
+
+
+  // -----------------------------------------------
+  // Serial Plotter
+  // -----------------------------------------------
+
+  Serial.print("Target:");
+  Serial.print(targetSpeed);
+
+  Serial.print("\tActual:");
+  Serial.println(measuredSpeed);
+
+
+  delay(10);
+}
+
+void readEncoder() {
+
+  int b =
+      digitalRead(ENCB);
+
+  if (b == HIGH) {
+    encoderPosition++;
+  }
+  else {
+    encoderPosition--;
+  }
+}
+
+void setMotor(float command) {
+
+  if (command > 0) {
+
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+
+    analogWrite(
+      PWM_PIN,
+      (int)command
+    );
+  }
+
+  else if (command < 0) {
+
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
+
+    analogWrite(
+      PWM_PIN,
+      (int)(-command)
+    );
+  }
+
+  else {
+
+    analogWrite(PWM_PIN, 0);
+
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+  }
+}
+````
+
+---
+
+# 19. Position PID vs Speed PID
+
+The two controllers have different purposes.
+
+
+| Feature | Position PID | Speed PID |
+|---|---|---:|
+| Feedback | Encoder position | Encoder speed |
+| Target | Position | Speed |
+| Example | 1000 counts | 300 counts/sec |
+| Output | Motor PWM | Motor PWM |
+| Main use | Move to a position | Maintain velocity |
+
+
+Position:
+
+````text
+
+"I want the wheel here."
+````
+
+Speed:
+
+````text
+
+"I want the wheel moving this fast."
+````
+
+---
+
+# 20. Recommended Development Sequence
+
+Do not try to tune everything at once.
+
+Follow this sequence:
+
+## Step 1 — Encoder
+
+First verify that:
+
+````text
+
+Rotate forward → counts increase
+Rotate backward → counts decrease
+````
+
+Do this with the motor disconnected if necessary.
+
+---
+
+## Step 2 — Motor
+
+Verify:
+
+````text
+
+Positive command → motor moves forward
+Negative command → motor moves backward
+Zero command → motor stops
+````
+
+Test the L298N without PID first.
+
+---
+
+## Step 3 — Position Measurement
+
+Turn the wheel manually and verify that the encoder position changes correctly.
+
+Determine:
+
+````text
+
+counts per revolution
+````
+
+if needed.
+
+---
+
+## Step 4 — Position PID
+
+Start with a fixed target:
+
+````ino
+
+long targetPosition = 1000;
+````
+
+Tune:
+
+````text
+
+Kp
+Kd
+Ki
+````
+
+in that order.
+
+---
+
+# Step 5 — Sine Position Tracking
+
+Once fixed-position control works, replace the fixed target with:
+
+````ino
+
+targetPosition =
+    sineCenter +
+    sineAmplitude *
+    sin(2.0 * PI * sineFrequency * time);
+````
+
+Plot:
+
+````text
+
+Target
+Actual
+````
+
+and compare the two curves.
+
+---
+
+# Step 6 — Measure Speed
+
+Calculate:
+
+````text
+
+counts/second
+````
+
+from encoder position changes.
+
+Then verify that:
+
+````text
+
+Forward → positive speed
+Reverse → negative speed
+````
+
+---
+
+## Step 7 — Speed PID
+
+Use:
+
+````text
+
+Target Speed
+      ↓
+    PID
+      ↓
+    Motor
+      ↓
+   Encoder
+      ↓
+Measured Speed
+````
+
+Tune the speed controller independently from the position controller.
+
+---
+
+# 21. Important Considerations
+
+## Encoder Resolution
+
+Know exactly how your encoder's specifications define its counts/revolution.
+
+Some encoders specify pulses per revolution based on one channel, while others specify counts after decoding both channels.
+
+The code above uses:
+
+````text
+
+RISING edge of channel A
+````
+
+
+so it is a relatively low-resolution decoding method.
+
+If higher resolution is needed, the encoder can be decoded using more edges:
+
+````text
+
+A rising
+A falling
+B rising
+B falling
+````
+
+This is commonly called x4 decoding.
+
+---
+
+## Motor Deadband
+
+DC motors often do not move at very low PWM values.
+
+For example:
+
+````text
+
+PWM = 20  → motor doesn't move
+PWM = 40  → motor doesn't move
+PWM = 60  → motor starts moving
+````
+
+This is especially important with an L298N.
+
+A PID controller may calculate a small output that is technically nonzero but isn't enough to overcome friction.
+
+Deadband compensation can be added later.
+
+---
+
+## Integral Windup
+
+The integral term can continue accumulating while the motor is saturated at:
+
+````text
+
++255
+````
+
+or:
+
+````text
+
+-255
+````
+
+This can cause overshoot and slow recovery.
+
+For a more advanced controller, add integral limits or anti-windup.
+
+For example:
+
+````ino
+
+integral = constrain(integral, -1000, 1000);
+````
+
+---
+
+
+## Control Loop Frequency
+
+The PID controller needs a consistent update rate.
+
+For example:
+
+````ino
+
+delay(10);
+````
+
+gives approximately:
+
+
+````text
+
+100 Hz
+````
+
+in ideal conditions.
+
+For better control, it is usually preferable to use a timer or elapsed-time check rather than relying on `delay()`.
+
+
+---
+
+
+# 22. Final Control Architecture
+
+Once everything is working, the complete system can be thought of as:
+
+````text
+
+                    +----------------------+
+                    |      Target          |
+                    | Position / Speed     |
+                    +----------+-----------+
+                               |
+                               v
+                         +-----------+
+                         |    PID    |
+                         +-----+-----+
+                               |
+                               v
+                         Motor Command
+                               |
+                               v
+                         +-----------+
+                         |   L298N   |
+                         +-----+-----+
+                               |
+                               v
+                         +-----------+
+                         | DC Motor  |
+                         +-----+-----+
+                               |
+                               v
+                         +-----------+
+                         | Encoder   |
+                         +-----+-----+
+                               |
+                               v
+                       Position / Speed
+                               |
+                               +----------+
+                                          |
+                                          v
+                                       PID
+````
+
+The fundamental progression is:
+
+````text
+
+Encoder
+   ↓
+Position
+   ↓
+Position PID
+   ↓
+Speed calculation
+   ↓
+Speed PID
+````
+
+Once speed control works reliably, the system can be extended into more advanced control structures such as:
+
+````text
+
+Position Controller
+        ↓
+   Desired Speed
+        ↓
+    Speed PID
+        ↓
+      Motor
+        ↓
+     Encoder
+````
+
+This is a common architecture for robotic wheels because the outer position controller can command a desired speed, while the inner speed controller handles the motor's actual velocity.
+
+
+
+
 
