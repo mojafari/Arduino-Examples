@@ -168,3 +168,32 @@ else {
 # 3. Reading Encoder Position Safely
 
 The encoder position is modified inside an interrupt:
+
+````ino
+
+volatile long encoderPosition = 0;
+````
+
+Because the interrupt can change the variable while the main program is reading it, it is good practice to make an atomic copy.
+
+On AVR-based Arduino boards, we can use:
+
+````ino
+
+#include <util/atomic.h>
+````
+
+Then:
+
+````ino
+
+long position;
+
+ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+  position = encoderPosition;
+}
+````
+
+This prevents the interrupt from modifying `encoderPosition` while it is being copied.
+
+## Encoder Position Code
